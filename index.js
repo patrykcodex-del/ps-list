@@ -96,6 +96,36 @@ const resolveExecutablePath = (operatingSystemPlatform, processId, commandLine) 
 	return extractExecutablePath(commandLine);
 };
 
+const extractArguments = (commandLine, executablePath) => {
+	if (!commandLine) {
+		return '';
+	}
+
+	const commandLineWithoutExecutable = executable => {
+		const rest = commandLine.slice(executable.length).trimStart();
+		return rest || '';
+	};
+
+	if (executablePath) {
+		if (commandLine === executablePath || commandLine.startsWith(`${executablePath} `)) {
+			return commandLineWithoutExecutable(executablePath);
+		}
+
+		const quotedExecutablePath = `"${executablePath}"`;
+		if (commandLine === quotedExecutablePath || commandLine.startsWith(`${quotedExecutablePath} `)) {
+			return commandLineWithoutExecutable(quotedExecutablePath);
+		}
+	}
+
+	if (commandLine.startsWith('"')) {
+		const quotedCommandMatch = commandLine.match(/^"[^"]+"\s*(.*)$/);
+		return quotedCommandMatch?.[1] ?? '';
+	}
+
+	const spaceIndex = commandLine.indexOf(' ');
+	return spaceIndex === -1 ? '' : commandLine.slice(spaceIndex + 1).trimStart();
+};
+
 // Parse and validate numeric field with fallback
 const parseNumericField = (fieldValue, parserFunction = Number.parseInt, defaultValue = 0) => {
 	if (!fieldValue) {
@@ -127,6 +157,7 @@ const parseProcessFields = ({processId, parentProcessId, userId, cpuUsage, memor
 
 	// Resolve executable path from command line
 	const resolvedExecutablePath = resolveExecutablePath(process.platform, parsedProcessId, command);
+	const arguments_ = extractArguments(command, resolvedExecutablePath);
 
 	// Derive process name: prefer basename of path, fallback to command name
 	const derivedProcessName = resolvedExecutablePath ? path.basename(resolvedExecutablePath) : (commandName || '');
@@ -139,6 +170,7 @@ const parseProcessFields = ({processId, parentProcessId, userId, cpuUsage, memor
 		memory: parsedMemoryUsagePercentage,
 		name: derivedProcessName,
 		path: resolvedExecutablePath,
+		args: arguments_,
 		startTime: makeStartTime(startTimeString),
 		cmd: command || '',
 	};
